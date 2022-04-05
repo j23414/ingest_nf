@@ -1,0 +1,263 @@
+#! /usr/bin/env python3
+
+"""
+Parse the GISAID NDJSON load into a metadata tsv and a FASTA file.
+"""
+
+import os
+import argparse
+import csv
+import sys
+from pathlib import Path
+from xopen import xopen
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
+from utils.transform import (
+    METADATA_COLUMNS,
+)
+from utils.transformpipeline import LINE_NUMBER_KEY
+from utils.transformpipeline.datasource import LineToJsonDataSource
+from utils.transformpipeline.filters import LineNumberFilter, SequenceLengthFilter
+from utils.transformpipeline.transforms import (
+    AbbreviateAuthors,
+    AddHardcodedMetadata,
+    DropSequenceData,
+    ExpandLocation,
+    FillDefaultLocationData,
+    FixLabs,
+    MergeUserAnnotatedMetadata,
+    MaskBadCollectionDate,
+    ParsePatientAge,
+    ParseSex,
+    RenameAndAddColumns,
+    StandardizeData,
+    UserProvidedAnnotations,
+    UserProvidedGeoLocationSubstitutionRules,
+    ApplyUserGeoLocationSubstitutionRules,
+    WriteCSV,
+)
+
+# Preserve the ordering of these columns for ease when generating Slack
+# notifications on change
+ADDITIONAL_INFO_COLUMNS = [
+    'gisaid_epi_isl', 'strain', 'additional_host_info',
+    'additional_location_info'
+]
+
+
+assert 'sequence' not in METADATA_COLUMNS, "Sequences should not appear in metadata!"
+assert 'sequence' not in ADDITIONAL_INFO_COLUMNS, "Sequences should not appear in additional info!"
+
+
+if __name__ == '__main__':
+    base = Path(__file__).resolve().parent.parent
+
+    parser = argparse.ArgumentParser(
+        description="Parse a GISAID JSON load into a metadata tsv and FASTA file.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument("gisaid_data",
+        default="s3://nextstrain-ncov-private/gisaid.ndjson.gz",
+        help="Newline-delimited GISAID JSON data")
+    parser.add_argument("--annotations",
+        default=str( base / "source-data/gisaid_annotations.tsv" ),
+        help="Optional manually curated annotations TSV.\n"
+            "The TSV file should have no header and exactly four columns which contain:\n\t"
+            "1. the strain ID (not used for matching; for readability)\n\t"
+            "2. the GISAID EPI_ISL accession number (used for matching)\n\t"
+            "3. the column name to replace from the generated `metadata.tsv` file\n\t"
+            "4. the replacement data\n"
+        "Lines or parts of lines starting with '#' are treated as comments.\n"
+        "e.g.\n\t"
+        "USA/MA1/2020    EPI_ISL_409067    location    Boston\n\t"
+        "# First Californian sample\n\t"
+        "USA/CA1/2020    EPI_ISL_406034    genbank_accession   MN994467\n\t"
+        "Wuhan-Hu-1/2019 EPI_ISL_402125    collection_date 2019-12-26 # Manually corrected date")
+    parser.add_argument("--accessions",
+        default=base / "source-data/accessions.tsv.gz",
+        help="Optional manually curated TSV cross-referencing accessions between databases (e.g. GISAID and GenBank/INSDC).")
+    parser.add_argument("--geo-location-rules",
+        default = str( base / "source-data/gisaid_geoLocationRules.tsv" ) ,
+        help="Optional manually curated rules to correct geographical location.\n"
+            "The TSV file should have no header and exactly 2 columns in the following format:\n\t"
+            "region/country/division/location<tab>region/country/division/location"
+            "Lines or parts of lines starting with '#' are treated as comments.\n"
+            "e.g.\n\t"
+            "Europe/Spain/Catalunya/Mataró\tEurope/Spain/Catalunya/Mataro\n\t")
+    parser.add_argument("--output-metadata",
+        default=str( base / "data/gisaid/metadata.tsv" ),
+        help="Output location of generated metadata tsv. Defaults to `data/gisaid/metadata.tsv`")
+    parser.add_argument("--output-fasta",
+        default=str( base / "data/gisaid/sequences.fasta" ) ,
+        help="Output location of generated FASTA file. Defaults to `data/gisaid/sequences.fasta`")
+    parser.add_argument("--output-additional-info",
+        default=str( base / "data/gisaid/additional_info.tsv" ) ,
+        help="Output location of additional info tsv. Defaults to `data/gisaid/additional_info.tsv`")
+    parser.add_argument("--sorted-fasta", action="store_true",
+        help="Sort the fasta file in the same order as the metadata file.  WARNING: Enabling this option can consume a lot of memory.")
+    parser.add_argument(
+        "--output-unix-newline",
+        dest="newline",
+        action="store_const",
+        const="\n",
+        default=os.linesep,
+        help="When specified, always use unix newlines in output files."
+    )
+    args = parser.parse_args()
+
+    annotations = UserProvidedAnnotations()
+    if args.annotations:
+        # Use the curated annotations tsv to update any column values
+        with open(args.annotations, "r") as gisaid_fh:
+            csvreader = csv.reader(gisaid_fh, delimiter='\t')
+            for row in csvreader:
+                if row[0].lstrip()[0] == '#':
+                    continue
+                elif len(row) != 4:
+                    print("WARNING: couldn't decode annotation line " + "\t".join(row))
+                    continue
+                strain, epi_isl, key, value = row
+                annotations.add_user_annotation(
+                    epi_isl,
+                    key,
+                    # remove the comment and the extra ws from the value
+                    value.split('#')[0].rstrip(),
+                )
+
+
+    accessions = UserProvidedAnnotations()
+    if args.accessions:
+        with xopen(args.accessions, "r") as accessions_fh:
+            for row in csv.DictReader(accessions_fh, delimiter='\t'):
+                accessions.add_user_annotation(
+                    row["gisaid_epi_isl"],
+                    "genbank_accession",
+                    row["genbank_accession"]
+                )
+
+
+    geoRules = UserProvidedGeoLocationSubstitutionRules()
+    if args.geo_location_rules :
+        # use curated rules to subtitute known spurious locations with correct ones
+        with open(args.geo_location_rules,'r') as geo_location_rules_fh :
+            for line in geo_location_rules_fh:
+                geoRules.readFromLine( line )
+
+    RAW_METADATA_FILENAME = args.output_metadata + '.raw'
+
+
+    with open(args.gisaid_data, "r") as gisaid_fh :
+
+        pipeline = (
+            LineToJsonDataSource(gisaid_fh)
+            | RenameAndAddColumns()
+            | StandardizeData()
+            | SequenceLengthFilter(15000)
+        )
+
+        if not args.sorted_fasta:
+            pipeline = pipeline | DropSequenceData()
+
+        pipeline = (
+            pipeline
+            | ExpandLocation()
+            | FixLabs()
+            | AbbreviateAuthors()
+            | ParsePatientAge()
+            | ParseSex()
+            | MaskBadCollectionDate()
+            | AddHardcodedMetadata()
+        )
+
+        # writing the raw metadata in a tsv file
+        pipeline = ( pipeline  | WriteCSV(RAW_METADATA_FILENAME,
+                                            METADATA_COLUMNS ,
+                                            restval = '?' ,
+                                            extrasaction ='ignore' ,
+                                            delimiter  = '\t',
+                                            dict_writer_kwargs  = {'lineterminator': args.newline} ) )
+
+
+        # applying the substitution rules (temporary : writing the intermediary data to verify effect )
+        dict_writer_kwargs = {'lineterminator': args.newline}
+
+
+        pipeline = (pipeline
+            | ApplyUserGeoLocationSubstitutionRules(geoRules)
+            | MergeUserAnnotatedMetadata(annotations)
+            | MergeUserAnnotatedMetadata(accessions)
+            | FillDefaultLocationData()
+        )
+
+        sorted_metadata = sorted(
+            pipeline,
+            key=lambda obj: (
+                obj['strain'],
+                -obj['length'],
+                obj['gisaid_epi_isl'],
+                obj[LINE_NUMBER_KEY]
+            )
+        )
+
+    #for unused_gisaid_epi_isl in annotations.get_unused_annotations():
+    #    print(f"WARNING: annotation for {unused_gisaid_epi_isl} was not used.")
+
+    # dedup by strain and compile a list of relevant line numbers.
+    seen_strains = set()
+    line_numbers = set()
+    for entry in sorted_metadata:
+        if entry['strain'] in seen_strains:
+            continue
+
+        seen_strains.add(entry['strain'])
+        line_numbers.add(entry[LINE_NUMBER_KEY])
+
+    with open(args.output_fasta, "wt", newline=args.newline) as fasta_fh:
+        with open(args.output_additional_info, "wt", newline="") as additional_info_fh, \
+             open(args.output_metadata, "wt", newline="") as metadata_fh:
+            dict_writer_kwargs = {'lineterminator': args.newline}
+
+            # set up the CSV output files
+            additional_info_csv = csv.DictWriter(
+                additional_info_fh,
+                ADDITIONAL_INFO_COLUMNS,
+                restval="?",
+                extrasaction='ignore',
+                delimiter='\t',
+                **dict_writer_kwargs
+            )
+            additional_info_csv.writeheader()
+            metadata_csv = csv.DictWriter(
+                metadata_fh,
+                METADATA_COLUMNS,
+                restval="?",
+                extrasaction='ignore',
+                delimiter='\t',
+                **dict_writer_kwargs
+            )
+            metadata_csv.writeheader()
+
+            updated_strain_names_by_line_no = {}
+            for entry in sorted_metadata:
+                if entry[LINE_NUMBER_KEY] in line_numbers:
+                    additional_info_csv.writerow(entry)
+                    metadata_csv.writerow(entry)
+
+                    if args.sorted_fasta:
+                        fasta_fh.write(f">{entry['strain']}\n")
+                        fasta_fh.write(f"{entry['sequence']}\n")
+                    else:
+                        updated_strain_names_by_line_no[entry[LINE_NUMBER_KEY]] = entry['strain']
+
+        if not args.sorted_fasta:
+            with open(args.gisaid_data, "r") as gisaid_fh:
+                for entry in (
+                        LineToJsonDataSource(gisaid_fh)
+                        | RenameAndAddColumns()
+                        | StandardizeData()
+                        | SequenceLengthFilter(15000)
+                        | LineNumberFilter(line_numbers)
+                ):
+                    strain_name = updated_strain_names_by_line_no[entry[LINE_NUMBER_KEY]]
+                    fasta_fh.write(f">{strain_name}\n")
+                    fasta_fh.write(f"{entry['sequence']}\n")
