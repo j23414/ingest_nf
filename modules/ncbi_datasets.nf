@@ -39,6 +39,7 @@ process format_ncbi_dataset_report {
 }
 
 process create_genbank_ndjson {
+  label 'transform_out'
   input: tuple path(ncbi_dataset_sequences), path(ncbi_dataset_tsv)
   output: path("genbank.ndjson")
   script:
