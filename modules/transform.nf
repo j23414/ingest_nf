@@ -216,7 +216,7 @@ process transform_authors {
   # (3) Transform authors
   cat ${ndjson} \
   | ./bin/transform-authors \
-    --authors-field ${authors_field} \
+    --authors-field "${authors_field}" \
     --default-value ${authors_default_value} \
     --abbr-authors-field ${abbr_authors_field} \
   > ${ndjson.simpleName}_ta.ndjson
