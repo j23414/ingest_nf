@@ -16,18 +16,25 @@ include { fetch_general_geolocation_rules;
           merge_user_metadata;
           ndjson_to_tsv_and_fasta;
           post_process_metadata; } from './modules/transform.nf'
+include { fetch_ncbi_dataset_package;
+          extract_ncbi_dataset_sequences;
+          format_ncbi_dataset_report;
+          create_genbank_ndjson } from './modules/ncbi_datasets.nf'
 
 // Define functions
 def helpMessage() {
   log.info """
   Usage:
    The typical command for running the pipeline are as follows:
-   nextflow run j23414/ingest_nf -r --ncbi_taxon_id "186536" -profile docker
+   nextflow run j23414/ingest_nf -r --ncbi_taxon_id "64320" -profile docker
+   nextflow run j23414/ingest_nf -r --virus_name "SARS-CoV-2" -profile docker
    
-   Mandatory arguments:
+   Must provide one of the following:
    --ncbi_taxon_id                     NCBI Taxon ID of the viral species to build a dataset for [default: '$params.ncbi_taxon_id']
+   --virus_variation                   Boolean if dataset should be fetched via VirusVariation API [default: '$params.virus_variation'], otherwise will use NCBI datasets API
 
    Optional parameter arguments
+
    --transform_fieldmap                Parameters passed to transform [default: '$transform_fieldmap']
    --transform_strain_regex            Parameters passed to transform [default: '$transform_strain_regex']
    --transform_strain_backup_fields    Parameters passed to transform [default: '$transform_strain_backup_fields']
@@ -45,6 +52,8 @@ def helpMessage() {
    --transform_id_field                Parameters passed to transform [default: '$transform_id_field']
    --transform_sequence_field          Parameters passed to transform [default: '$transform_sequence_field']
 
+   --ncbi_dataset_fields_to_include    Parameters passed to ncbi dataset dataformat tsv [default: '$params.ncbi_dataset_fields_to_include']
+
    Optional arguments:
    --outdir                           Output directory to place final output [default: '$params.outdir']
    --help                             This usage statement.
@@ -60,9 +69,30 @@ if ( params.help) {
 workflow {
   general_geolocation_rules_ch = fetch_general_geolocation_rules()
 
-  channel.of("$params.ncbi_taxon_id")
-  | view { "NCBI Taxon ID: $it"}
-  | fetch_from_genbank
+  if ( params.virus_variation && params.ncbi_taxon_id ) {
+    genbank_ndjson_ch = channel.of("$params.ncbi_taxon_id")
+    | view { "NCBI Taxon ID: $it will fetch via Virus Variation"}
+    | fetch_from_genbank
+  } else if ( params.ncbi_taxon_id ) {
+    genbank_fasta_ch = channel.of("$params.ncbi_taxon_id")
+    | view { "NCBI Taxon ID: $it will fetch via NCBI Datasets"}
+    | fetch_ncbi_dataset_package
+    | extract_ncbi_dataset_sequences
+    
+    genbank_tsv_ch = fetch_ncbi_dataset_package.out
+    | combine(channel.of("$params.ncbi_dataset_fields_to_include"))
+    | format_ncbi_dataset_report
+
+    genbank_ndjson_ch = genbank_fasta_ch
+    | combine(genbank_tsv_ch)
+    | create_genbank_ndjson
+
+  } else {
+    helpMessage()
+    exit 1
+  }
+
+  genbank_ndjson_ch
   | combine(channel.of("$transform_fieldmap"))
   | transform_field_names
   | transform_string_fields
