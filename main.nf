@@ -26,8 +26,8 @@ def helpMessage() {
   log.info """
   Usage:
    The typical command for running the pipeline are as follows:
-   nextflow run j23414/ingest_nf -r --ncbi_taxon_id "64320" -profile docker
-   nextflow run j23414/ingest_nf -r --virus_name "SARS-CoV-2" -profile docker
+   nextflow run j23414/ingest_nf -r main --ncbi_taxon_id "64320" -profile docker
+   nextflow run j23414/ingest_nf -r main --ncbi_taxon_id "64320" --virus_variation -profile docker
    
    Must provide one of the following:
    --ncbi_taxon_id                     NCBI Taxon ID of the viral species to build a dataset for [default: '$params.ncbi_taxon_id']

@@ -50,11 +50,12 @@ Launching `https://github.com/j23414/ingest_nf` [curious_joliot] DSL2 - revision
 
 ## Examples
 
-**zika**
+**ebola**
 
 ```
 nextflow run j23414/ingest_nf -r main \
   --ncbi_taxon_id "186536" \
+  --virus_variation true \
   -profile docker
 ```
 
@@ -88,6 +89,7 @@ Succeeded   : 13
 ```
 nextflow run j23414/ingest_nf -r main \
   --ncbi_taxon_id "12637" \
+  --virus_variation true \
   -profile docker \
   --outdir "dengue_results"
 ```
