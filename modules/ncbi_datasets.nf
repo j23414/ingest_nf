@@ -14,6 +14,7 @@ process fetch_ncbi_dataset_package {
 }
 
 process extract_ncbi_dataset_sequences {
+  label 'final_out'
   input: path(dataset_package)
   output: path("ncbi_dataset_sequences.fasta")
   script:
@@ -26,6 +27,7 @@ process extract_ncbi_dataset_sequences {
 
 // fields 'accession,sourcedb,sra-accs,isolate-lineage,geo-region,geo-location,isolate-collection-date,release-date,update-date,virus-pangolin,length,host-common-name,isolate-lineage-source,biosample-acc,submitter-names,submitter-affiliation,submitter-country'
 process format_ncbi_dataset_report {
+  label 'final_out'
   input: tuple path(dataset_package), val(fields_to_include)
   output: path("ncbi_dataset_report.tsv")
   script:
