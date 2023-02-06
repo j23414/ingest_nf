@@ -96,7 +96,7 @@ process transform_strain_names {
   fi
   # (2) Pull needed scripts
   mkdir bin
-  \$download_cmd bin/transform-strain-names https://raw.githubusercontent.com/nextstrain/monkeypox/master/ingest/bin/transform-strain-names
+  \$download_cmd bin/transform-strain-names https://raw.githubusercontent.com/j23414/monkeypox/master/ingest/bin/transform-strain-names
   chmod +x bin/*
   # (3) Transform strain names
   cat ${ndjson} \
