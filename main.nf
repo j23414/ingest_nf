@@ -20,6 +20,8 @@ include { fetch_ncbi_dataset_package;
           extract_ncbi_dataset_sequences;
           format_ncbi_dataset_report;
           create_genbank_ndjson } from './modules/ncbi_datasets.nf'
+          
+include { length_filter } from './modules/wrap_bin.nf'
 
 // Define functions
 def helpMessage() {
@@ -86,6 +88,8 @@ workflow {
     genbank_ndjson_ch = genbank_fasta_ch
     | combine(genbank_tsv_ch)
     | create_genbank_ndjson
+    | combine(channel.of('5000'))
+    | length_filter
 
   } else {
     helpMessage()

@@ -9,9 +9,10 @@ process length_filter {
   script:
   """
   #! /usr/bin/env bash
+  
   length_filter.py \
-    --min-length $min_length \
-    --input ${ndjson} \
-    --output ${ndjson.simpleName}_lf.ndjson
+    --min_length $min_length \
+    --genbank_ndjson ${ndjson} \
+    > ${ndjson.simpleName}_lf.ndjson
   """
 }

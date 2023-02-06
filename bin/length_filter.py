@@ -56,7 +56,7 @@ def main():
             criteria_bool = _check_min_length(
                 line, args.min_length)  # && _other_criteria(line)
             if (criteria_bool):
-                print(line)
+                print(line.strip())
 
 
 if __name__ == "__main__":
