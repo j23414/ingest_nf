@@ -20,11 +20,16 @@ process fetch_from_genbank {
   fi
   # (2) Pull needed scripts
   mkdir bin
-  \$download_cmd bin/genbank-url https://raw.githubusercontent.com/nextstrain/dengue/ingest/ingest/bin/genbank-url
-  \$download_cmd bin/fetch-from-genbank https://raw.githubusercontent.com/nextstrain/dengue/ingest/ingest/bin/fetch-from-genbank
+  \$download_cmd bin/genbank-url https://raw.githubusercontent.com/nextstrain/dengue/new_ingest/ingest/bin/genbank-url
+  \$download_cmd bin/fetch-from-genbank https://raw.githubusercontent.com/nextstrain/dengue/new_ingest/ingest/bin/fetch-from-genbank
   \$download_cmd bin/csv-to-ndjson https://raw.githubusercontent.com/nextstrain/monkeypox/master/ingest/bin/csv-to-ndjson
   chmod +x bin/*
   # (3) Fetch data
   bin/fetch-from-genbank $ncbi_taxon_id > genbank_${ncbi_taxon_id}.ndjson
+
+  if [[ ! -s "genbank_${ncbi_taxon_id}.ndjson" ]]; then
+    echo "No records returned"
+    exit 1
+  fi
   """
 }
