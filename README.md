@@ -1,13 +1,16 @@
 # Ingest NF
 
-Will require a working install of `nextflow` but can otherwise pull the pipeline via:
+Ingest_NF is a Nextflow wrapped pipeline inspired by [ncov-ingest](https://github.com/nextstrain/ncov-ingest), [monkeypox/ingest](https://github.com/nextstrain/monkeypox/tree/master/ingest), and various other pathogen ingests. 
+
+
+## Usage
+
+To use this pipeline, you will need to have [nextflow installed](https://www.nextflow.io/docs/latest/getstarted.html#installation) and working properly on your system. Once you have a working installation of nextflow, you can obtain the pipeline by running the following command:
 
 ```
 nextflow run j23414/ingest_nf -r main \
   --help
 ```
-
-<details><summary>View output</summary>
 
 ```
 N E X T F L O W  ~  version 22.10.0
@@ -17,10 +20,13 @@ Launching `https://github.com/j23414/ingest_nf` [curious_joliot] DSL2 - revision
 
   Usage:
    The typical command for running the pipeline are as follows:
-   nextflow run j23414/ingest_nf -r --ncbi_taxon_id "186536" -profile docker
+   nextflow run j23414/ingest_nf -r --ncbi_taxon_id "186536" --virus_variation true -profile docker
    
    Mandatory arguments:
    --ncbi_taxon_id                     NCBI Taxon ID of the viral species to build a dataset for [default: '64320']
+   
+   AP Access arguments:
+   --virus_variation true              Pull dataset from Virus Variation API
 
    Optional parameter arguments
    --transform_fieldmap                Parameters passed to transform [default: 'collected=date submitted=date_submitted genbank_accession=accession submitting_organization=institution']
@@ -43,87 +49,47 @@ Launching `https://github.com/j23414/ingest_nf` [curious_joliot] DSL2 - revision
    Optional arguments:
    --outdir                           Output directory to place final output [default: 'data']
    --help                             This usage statement.
-   --check_software                   Check if software dependencies are available.
 ```
 
-</details>
-
-## Examples
-
-**ebola**
-
-```
-nextflow run j23414/ingest_nf -r main \
-  --ncbi_taxon_id "186536" \
-  --virus_variation true \
-  -profile docker
-```
-
-```
-N E X T F L O W  ~  version 22.10.0
-Launching `https://github.com/j23414/ingest_nf` [desperate_bohr] DSL2 - revision: 378afc6fa6 [main]
-[c7/337ae7] process > fetch_general_geolocation_rules [100%] 1 of 1 ✔
-[cb/3730e7] process > fetch_from_genbank (1)          [100%] 1 of 1 ✔
-[b4/096053] process > transform_field_names (1)       [100%] 1 of 1 ✔
-[ee/97d539] process > transform_string_fields (1)     [100%] 1 of 1 ✔
-[e3/732efc] process > transform_strain_names (1)      [100%] 1 of 1 ✔
-[21/e705c0] process > transform_date_fields (1)       [100%] 1 of 1 ✔
-[9f/a70ff6] process > transform_genbank_location (1)  [100%] 1 of 1 ✔
-[18/8b467d] process > transform_string_fields2 (1)    [100%] 1 of 1 ✔
-[cb/e5bec6] process > transform_authors (1)           [100%] 1 of 1 ✔
-[6c/f190fc] process > apply_geolocation_rules (1)     [100%] 1 of 1 ✔
-[fc/b8fda0] process > merge_user_metadata (1)         [100%] 1 of 1 ✔
-[34/4da3e7] process > ndjson_to_tsv_and_fasta (1)     [100%] 1 of 1 ✔
-[cc/4f5426] process > post_process_metadata (1)       [100%] 1 of 1 ✔
-NCBI Taxon ID: 186536
-~/Desktop/temp/work/cc/4f5426736405da3cd1215ec07c7030/metadata.tsv
-
-Completed at: 05-Jan-2023 19:11:01
-Duration    : 1m 23s
-CPU hours   : (a few seconds)
-Succeeded   : 13
-```
+# Example Pathogen Ingest
  
-**dengue**
+Ingest_NF requires the NCBI Taxon ID for your pathogen of interest. The dependencies are made available via `-profile docker` or `-profile singularity` depending on your system. You may also run it using locally installed dependencies by dropping the `-profile` flag completely.
+ 
+**Dengue**
 
 ```
-nextflow run j23414/ingest_nf -r main \
+nextflow run j23414/ingest_nf -r main \ 
   --ncbi_taxon_id "12637" \
   --virus_variation true \
   -profile docker \
   --outdir "dengue_results"
 ```
 
-<details><summary>View output</summary>
-
 ```
-N E X T F L O W  ~  version 22.10.0
-Launching `https://github.com/j23414/ingest_nf` [disturbed_boyd] DSL2 - revision: 378afc6fa6 [main]
-executor >  local (7)
-executor >  local (8)
+N E X T F L O W  ~  version 22.10.6
+Launching `https://github.com/j23414/ingest_nf` [magical_ptolemy] DSL2 - revision: 70221b6266 [main]
 executor >  local (13)
-[c3/ad09b1] process > fetch_general_geolocation_rules [100%] 1 of 1 ✔
-[43/ed0fe0] process > fetch_from_genbank (1)          [100%] 1 of 1 ✔
-[ce/a842b9] process > transform_field_names (1)       [100%] 1 of 1 ✔
-[38/dfb3c5] process > transform_string_fields (1)     [100%] 1 of 1 ✔
-[33/751126] process > transform_strain_names (1)      [100%] 1 of 1 ✔
-[3e/7e7ebb] process > transform_date_fields (1)       [100%] 1 of 1 ✔
-[90/9795d8] process > transform_genbank_location (1)  [100%] 1 of 1 ✔
-[dc/1ef10c] process > transform_string_fields2 (1)    [100%] 1 of 1 ✔
-[a8/ad4714] process > transform_authors (1)           [100%] 1 of 1 ✔
-[4b/f801e4] process > apply_geolocation_rules (1)     [100%] 1 of 1 ✔
-[61/85102c] process > merge_user_metadata (1)         [100%] 1 of 1 ✔
-[03/db473f] process > ndjson_to_tsv_and_fasta (1)     [100%] 1 of 1 ✔
-[d1/e94475] process > post_process_metadata (1)       [100%] 1 of 1 ✔
-~/Desktop/temp/work/d1/e944750762a429ee8aa136345f25d2/metadata.tsv
-Completed at: 05-Jan-2023 19:36:14
-Duration    : 4m 32s
+[ca/6a564b] process > fetch_general_geolocation_rules [100%] 1 of 1 ✔
+[c1/d5a2dc] process > fetch_from_genbank (1)          [100%] 1 of 1 ✔
+[9b/73a488] process > transform_field_names (1)       [100%] 1 of 1 ✔
+[f1/9ffaf8] process > transform_string_fields (1)     [100%] 1 of 1 ✔
+[c3/9313de] process > transform_strain_names (1)      [100%] 1 of 1 ✔
+[37/33bffd] process > transform_date_fields (1)       [100%] 1 of 1 ✔
+[96/8bb9bf] process > transform_genbank_location (1)  [100%] 1 of 1 ✔
+[f4/f6d6ac] process > transform_string_fields2 (1)    [100%] 1 of 1 ✔
+[60/e61e4f] process > transform_authors (1)           [100%] 1 of 1 ✔
+[7c/7356a6] process > apply_geolocation_rules (1)     [100%] 1 of 1 ✔
+[5e/96bd69] process > merge_user_metadata (1)         [100%] 1 of 1 ✔
+[aa/0871d0] process > ndjson_to_tsv_and_fasta (1)     [100%] 1 of 1 ✔
+[59/542abb] process > post_process_metadata (1)       [100%] 1 of 1 ✔
+/Users/jchang3/Desktop/work/59/542abb4878def981dc8803fb985a0d/metadata.tsv
+Completed at: 19-Mar-2023 18:02:13
+Duration    : 4m 41s
 CPU hours   : 0.1
 Succeeded   : 13
 
-ls -ltr dengue_results
+ls -1tr dengue_results
 
-total 236M
 genbank_12637.ndjson
 transform
 raw_metadata.tsv
@@ -131,4 +97,3 @@ sequences.fasta
 metadata.tsv
 ```
 
-</details>

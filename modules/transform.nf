@@ -58,22 +58,8 @@ process transform_string_fields {
   script:
   """
   #! /usr/bin/env bash
-  # (1) Pick wget or curl
-  if which wget >/dev/null ; then
-    download_cmd="wget -O"
-  elif which curl >/dev/null ; then
-    download_cmd="curl -fsSL --output"
-  else
-    echo "neither wget nor curl available"
-    exit 1
-  fi
-  # (2) Pull needed scripts
-  mkdir bin
-  \$download_cmd bin/transform-string-fields https://raw.githubusercontent.com/nextstrain/monkeypox/master/ingest/bin/transform-string-fields
-  chmod +x bin/*
-  # (3) Transform string fields
   cat ${ndjson} \
-  | ./bin/transform-string-fields --normalize \
+  | augur curate normalize-strings \
   > ${ndjson.simpleName}_tsf.ndjson
   """
 }
