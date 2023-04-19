@@ -4,6 +4,8 @@ nextflow.enable.dsl = 2
 
 process fetch_from_genbank {
   label 'final_out'
+  errorStrategy 'retry'
+  maxRetries 3
   input: val(ncbi_taxon_id)
   output: path("genbank_${ncbi_taxon_id}.ndjson")
   script:
